@@ -31,10 +31,20 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      # Naudojame oficialų Tauri action kompilavimui
       - name: Build Tauri App
-        run: npm run tauri build
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Markdown Viewer ${{ github.ref_name }}"
+          releaseBody: "Standalone portable Windows executable."
+          releaseDraft: false
+          prerelease: false
 
-      - name: Create Release & Upload Portable EXE
+      # Atskiru žingsniu įkeliame TIK portable .exe failą
+      - name: Upload portable Windows exe
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,9 +57,8 @@ jobs:
           VER="${TAG_NAME#v}"
           OUT="Markdown.Viewer_${VER}_x64_portable.exe"
           
+          # Kopijuojame gryną .exe failą
           cp "src-tauri/target/release/md-viewer.exe" "$OUT"
           
-          gh release create "$TAG_NAME" "$OUT" \
-            --title "Markdown Viewer ${TAG_NAME}" \
-            --notes "Standalone portable Windows executable." \
-            --clobber
+          # Įkeliame portable .exe į Release puslapį
+          gh release upload "$TAG_NAME" "$OUT" --clobber
