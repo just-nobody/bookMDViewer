@@ -77,6 +77,6 @@ jobs:
             gh release create "$RELEASE_TAG" "$EXE" \
               --target "$GITHUB_SHA" \
               --title "Markdown Viewer $RELEASE_TAG" \
-              --notes "Portable Windows build: download markdown-viewer.exe and run it (no installer). Requires the Microsoft Edge WebView2 Runtime."
+              --notes "Portable Windows build requires the Microsoft Edge WebView2 Runtime."
           fi
           echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
