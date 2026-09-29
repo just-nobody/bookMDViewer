@@ -1,18 +1,19 @@
 name: release
 
-# Builds ONE portable Windows exe (markdown-viewer.exe) — no installers, no
-# other operating systems.
+# Builds ONE portable Windows exe (markdown-viewer.exe) and publishes it as a
+# GitHub Release — no installers, no zip, no other operating systems.
 #
-#  - Push a tag like `v1.5.0`: builds the exe and attaches it to a GitHub
-#    Release with that tag (the release is created if it doesn't exist).
-#  - Run manually (Actions tab → release → Run workflow): builds only; download
-#    the exe from the run's "Artifacts" section.
+#  - Run manually (Actions tab → release → Run workflow): creates the release
+#    `v<version>` (version from src-tauri/tauri.conf.json, e.g. v1.5.0) and
+#    attaches markdown-viewer.exe. Re-running replaces the exe in that release.
+#  - Pushing a tag like `v1.5.0` does the same for that tag (the tag must match
+#    the app version).
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,6 +31,18 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Determine release tag
+        shell: bash
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).version" | tr -d '\r')
+          TAG="v$VERSION"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the app version $TAG (src-tauri/tauri.conf.json)"
+            exit 1
+          fi
+          echo "Release tag: $TAG"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -43,39 +56,27 @@ jobs:
 
       # Runs `npm run build` (beforeBuildCommand) and then `cargo build --release`.
       # --no-bundle: only the exe, no NSIS/MSI installers.
-      - name: Build portable exe
+      - name: Build markdown-viewer.exe
         run: npx tauri build --no-bundle
 
-      - name: Rename exe
+      - name: Publish GitHub release
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          EXE="src-tauri/target/release/md-viewer.exe"
+          EXE="src-tauri/target/release/markdown-viewer.exe"
           if [ ! -f "$EXE" ]; then
             echo "::error::$EXE not found"
             ls -la src-tauri/target/release
             exit 1
           fi
-          cp "$EXE" markdown-viewer.exe
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: markdown-viewer
-          path: markdown-viewer.exe
-          if-no-files-found: error
-
-      - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" markdown-viewer.exe --clobber
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$EXE" --clobber
           else
-            gh release create "$TAG" markdown-viewer.exe \
-              --title "Markdown Viewer $TAG" \
+            gh release create "$RELEASE_TAG" "$EXE" \
+              --target "$GITHUB_SHA" \
+              --title "Markdown Viewer $RELEASE_TAG" \
               --notes "Portable Windows build: download markdown-viewer.exe and run it (no installer). Requires the Microsoft Edge WebView2 Runtime."
           fi
+          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
