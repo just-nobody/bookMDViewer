@@ -962,7 +962,7 @@ async function checkUpdate(): Promise<void> {
   showUpdateStatus("Checking…");
   try {
     const res = await fetch(
-      "https://api.github.com/repos/just-nobody/bookMDViewer/releases",
+      "https://api.github.com/repos/just-nobody/bookMDViewer/releases/latest",
       { headers: { Accept: "application/vnd.github+json" } },
     );
     if (!res.ok) throw new Error(String(res.status));
