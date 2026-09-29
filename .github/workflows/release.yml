@@ -31,7 +31,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm install[cite: 4]
 
-      # Kompiliuojame tik patį projektą nenaudojant installerių generavimo
       - name: Build Tauri app binary
         run: npm run tauri build -- --no-bundle
 
@@ -41,16 +40,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VER="${GITHUB_REF_NAME#v}"
-          # Jei leidi rankiniu būdu (workflow_dispatch) be tag'o, panaudojame numatytąją versiją
-          if [ -z "$VER" ]; then VER="portable"; fi
+          if [ -z "$VER" ] || [ "$VER" = "main" ] || [ "$VER" = "master" ]; then VER="portable"; fi
           
           OUT="Markdown.Viewer_${VER}_x64_portable.exe"
           
-          # Nukopijuojame gryną .exe failą iš release katalogo
           cp "src-tauri/target/release/md-viewer.exe" "$OUT"
           
-          # Sukuriame Release ir įkeliame TIK portable .exe failą
-          gh release create "${GITHUB_REF_NAME:-v1.0.0}" "$OUT" \
-            --title "Markdown Viewer ${GITHUB_REF_NAME:-Portable}" \
+          gh release create "v1.0.0-${VER}" "$OUT" \
+            --title "Markdown Viewer (${VER})" \
             --notes "Standalone portable Windows executable." \
             --clobber
