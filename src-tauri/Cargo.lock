@@ -2020,18 +2020,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "616ec5685824bcc94416c6d4a7a446eea774a31efd7062c8480ba6fd06d7a6e5"
 
 [[package]]
-name = "markup5ever"
-version = "0.38.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8983d30f2915feeaaab2d6babdd6bc7e9ed1a00b66b5e6d74df19aa9c0e91862"
-dependencies = [
- "log",
- "tendril",
- "web_atoms",
-]
-
-[[package]]
-name = "md-viewer"
+name = "markdown-viewer"
 version = "1.5.0"
 dependencies = [
  "notify",
@@ -2041,6 +2030,17 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+]
+
+[[package]]
+name = "markup5ever"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8983d30f2915feeaaab2d6babdd6bc7e9ed1a00b66b5e6d74df19aa9c0e91862"
+dependencies = [
+ "log",
+ "tendril",
+ "web_atoms",
 ]
 
 [[package]]
