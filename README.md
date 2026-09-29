@@ -86,7 +86,7 @@ guess, not a signature match.
 | `Ctrl+F` | Find in document |
 | `Ctrl+E` | Toggle edit / preview |
 | `Ctrl+S` | Save |
-| `Ctrl+W` / `Esc` | Close the document (asks to save if there are unsaved changes; `Esc` first closes any open dialog / find bar) |
+| `Ctrl+W` / `Esc` | Close the window (asks to save if there are unsaved changes; `Esc` first closes any open dialog / find bar) |
 | `Ctrl+\` | Toggle outline sidebar |
 | `Ctrl+Shift+\` | Toggle wide / narrow content |
 | `Ctrl+B` | Toggle file explorer |
@@ -102,23 +102,18 @@ markdown-viewer.exe file.md --zoom=1.5 # scale the whole UI (high-DPI / accessib
 
 ## Build with GitHub Actions (no local Node/Rust needed)
 
-The workflow builds **only** the portable Windows exe — no installers, no other
-platforms:
+The workflow builds **only** the portable Windows exe — no installers, no zip,
+no other platforms — and publishes it as a GitHub Release:
 
-- **Push a version tag** — builds the exe and attaches `markdown-viewer.exe` to
-  a GitHub Release for that tag:
+- **Run it manually** — *Actions → release → Run workflow*. It creates the
+  release `v<version>` (e.g. `v1.5.0`, taken from `src-tauri/tauri.conf.json`)
+  with `markdown-viewer.exe` attached. Running it again replaces the exe.
+- **Or push a version tag** (`v1.5.0`) — same result; the tag must match the
+  app version.
 
-  ```bash
-  git tag v1.5.0
-  git push origin v1.5.0
-  ```
-
-- **Run it manually** — *Actions → release → Run workflow*. The exe is then
-  available under the run's **Artifacts** (no release is created).
-
-Keep the version in `package.json`, `src-tauri/Cargo.toml` and
-`src-tauri/tauri.conf.json` in sync with the tag — that's the version the app
-shows. See [.github/workflows/release.yml](.github/workflows/release.yml).
+To release a new version, change the version in `package.json`,
+`src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (keep them the same) and
+run the workflow. See [.github/workflows/release.yml](.github/workflows/release.yml).
 
 ## Build locally (optional)
 
@@ -129,5 +124,5 @@ npm install
 npm run tauri build
 ```
 
-Output: `src-tauri/target/release/md-viewer.exe` (no installers are produced).
+Output: `src-tauri/target/release/markdown-viewer.exe` (no installers are produced).
 For development with hot reload use `npm run tauri dev`.

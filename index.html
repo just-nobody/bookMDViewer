@@ -20,7 +20,7 @@
       <button id="export-btn" title="Export to HTML" aria-label="Export to HTML">⬇ HTML</button>
       <button id="edit-toggle" title="Toggle edit mode (Ctrl+E)" aria-label="Toggle edit mode">✎ Edit</button>
       <button id="toc-toggle" title="Toggle outline (Ctrl+\)" aria-label="Toggle outline">☰</button>
-      <button id="close-doc-btn" class="icon-btn" title="Close document — back to home (Ctrl+W / Esc)" aria-label="Close document" hidden>✕</button>
+      <button id="close-doc-btn" class="icon-btn" title="Close document — back to home" aria-label="Close document" hidden>✕</button>
     </div>
     <div id="toast" hidden></div>
     <div id="find-bar" hidden>
@@ -63,15 +63,10 @@
       <div class="modal-box settings-box">
         <div class="settings-title">Settings</div>
         <div class="settings-row">
-          <label for="font-latin">Latin font</label>
+          <label for="font-latin">Font</label>
           <select id="font-latin"></select>
         </div>
         <input id="font-latin-custom" class="font-custom" list="font-list" placeholder="Type a font name…" spellcheck="false" autocomplete="off" hidden />
-        <div class="settings-row">
-          <label for="font-cjk">CJK font</label>
-          <select id="font-cjk"></select>
-        </div>
-        <input id="font-cjk-custom" class="font-custom" list="font-list" placeholder="Type a font name…" spellcheck="false" autocomplete="off" hidden />
         <datalist id="font-list"></datalist>
         <p class="settings-preview" id="font-preview">
           The quick brown fox jumps over the lazy dog 0123
@@ -86,7 +81,7 @@
         <div class="update-status" id="update-status" hidden></div>
 
         <div class="modal-actions">
-          <button id="settings-reset">Reset fonts</button>
+          <button id="settings-reset">Reset font</button>
           <button id="settings-close">Close</button>
         </div>
       </div>
