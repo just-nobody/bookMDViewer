@@ -1,15 +1,14 @@
 # Markdown Viewer
 
-A **lightweight, fully-local Markdown viewer & editor** for Windows, macOS and
-Linux. Built with **Tauri v2**, it uses the operating system's built-in WebView
-(WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux) instead of bundling
-Chromium — so the Windows binary is only **~4 MB** and idle memory stays around
-**30–60 MB**.
+A **lightweight, fully-local Markdown viewer & editor** for Windows. Built with
+**Tauri v2**, it uses Windows' built-in WebView2 instead of bundling Chromium —
+so the whole app is a single portable exe of about **4 MB** and idle memory stays
+around **30–60 MB**.
 
-Double-click a `.md` file and it opens instantly, beautifully rendered — with a
-navigable outline, syntax highlighting, Mermaid diagrams, a built-in editor with
-live preview, and one-click export to a self-contained HTML file. No installer
-bloat, no cloud, no telemetry. Everything runs offline.
+Open a `.md` file and it renders instantly — with a navigable outline, syntax
+highlighting, Mermaid diagrams, a built-in editor with live preview, and
+one-click export to a self-contained HTML file. No installer, no cloud, no
+telemetry. Everything runs offline.
 
 ## Screenshots
 
@@ -18,14 +17,14 @@ bloat, no cloud, no telemetry. Everything runs offline.
 The left **outline (TOC)** is generated from the document's headings; click any
 entry to jump, and it highlights the section you're currently reading.
 
-![Reading mode with outline sidebar](docs/screenshots/viewer.png)
+![Reading mode with outline sidebar](viewer.png)
 
 ### Editing mode — live edit & preview
 
 Press **Edit** (or `Ctrl+E`) to open the split editor. The preview updates as you
 type, the two panes **scroll together**, and `Ctrl+S` saves back to disk.
 
-![Edit mode with live preview](docs/screenshots/editor.png)
+![Edit mode with live preview](editor.png)
 
 ## Features
 
@@ -40,29 +39,29 @@ type, the two panes **scroll together**, and `Ctrl+S` saves back to disk.
 - **Export to HTML** — produces a single self-contained `.html` next to your file,
   including the outline sidebar, highlighted code and inline Mermaid SVGs
 - **Live reload** — the open file is watched on disk and re-rendered on save
-- **File association** — double-click any `.md` / `.markdown` file to open it
+- **Open with** — pick `markdown-viewer.exe` in Windows' "Open with" dialog for `.md` files
 - **Drag & drop** a Markdown file onto the window
 - **Find in document** (`Ctrl+F`), **open-file dialog** (`Ctrl+O`) and a **recent-files** list
 - **YAML front matter** — the leading `---...---` block renders as a clean metadata card (title, description, date, tags, draft badge) instead of broken rules
 - **Local relative-path images** — `![](images/x.png)` resolves and displays
 - **Safe** — rendered HTML is sanitized with DOMPurify under a strict CSP, so opening an untrusted document won't run malicious scripts
-- Light / dark theme follows the OS setting
+- Light / dark theme — follows the OS setting or can be toggled manually
+- **Remembers the window** — size, position and maximized state are saved on
+  every move / resize and restored on the next launch
 - External links open in your default browser
 
 ## Download
 
-Grab the latest build from the [**Releases**](https://github.com/craig7351/bookMDViewer/releases/latest) page:
+Grab `markdown-viewer.exe` from this repository's **Releases** page. It's a
+single portable exe (Windows x64) — no installer, just download and run it.
 
-| Platform | File |
-| --- | --- |
-| Windows (installer, **recommended**) | `Markdown.Viewer_*_x64-setup.exe` or `*_x64_en-US.msi` |
-| Windows (portable, no install) | `Markdown.Viewer_*_x64_portable.exe` |
-| macOS (Apple Silicon / Intel) | `*_aarch64.dmg` / `*_x64.dmg` |
-| Linux | `*_amd64.AppImage`, `*_amd64.deb`, `*.x86_64.rpm` |
-
-> The installer registers the `.md` file association (double-click to open). The
-> portable build runs without installing but won't change file associations.
-> All builds require the system WebView (WebView2 is preinstalled on Windows 11).
+> The portable exe doesn't register a file association. To open `.md` files
+> with a double-click, right-click a `.md` file → **Open with** → **Choose
+> another app** → browse to `markdown-viewer.exe` and tick "Always use this app".
+>
+> It requires the **Microsoft Edge WebView2 Runtime**, which is preinstalled on
+> Windows 11 and on up-to-date Windows 10. On editions without it (e.g. Windows
+> 10 LTSC), install the "Evergreen" runtime from Microsoft's WebView2 page.
 
 ### Antivirus false positive (Windows)
 
@@ -72,44 +71,12 @@ program (PUA)" such as `Program:Win32/Wacapew.A!ml`. This is a **false positive*
 not actual malware — the `!ml` suffix means it's a machine-learning *heuristic*
 guess, not a signature match.
 
-- **Prefer the installer build** — it tends to be flagged less often than the
-  portable single-file exe.
 - Every binary is built by GitHub Actions straight from public source. You can
   verify any exe yourself on [VirusTotal](https://www.virustotal.com) (a typical
   false positive shows only a few of dozens of engines flagging it, all with
   heuristic names like `!ml` / `PUA` / `Generic`).
 - If blocked, choose **Allow / Restore** in the notification, or restore it under
   **Windows Security → Virus & threat protection → Protection history**.
-
-### Opening on macOS for the first time (important)
-
-The macOS build is **not notarized by Apple yet**, and recent macOS releases are
-increasingly strict, so the first launch may be blocked ("cannot be opened
-because the developer cannot be verified"). Use any one of these:
-
-- **Right-click → Open** (Ventura and earlier): right-click `Markdown Viewer.app`
-  → **Open** → **Open** again.
-- **System Settings** (Sonoma / Sequoia): after the first blocked attempt, go to
-  **System Settings → Privacy & Security** and click **Open Anyway**.
-- **Or run once in Terminal** (clears the quarantine attribute):
-
-  ```bash
-  xattr -cr "/Applications/Markdown Viewer.app"
-  ```
-
-You only need to do this once.
-
-### Linux troubleshooting
-
-If you hit a blank window or `libGLESv2.so.2: undefined symbol` (common across
-different GPU/driver/VM setups), the app already disables WebKitGTK's DMABUF
-renderer to work around it. If problems persist, add one more env var at launch:
-
-```bash
-WEBKIT_DISABLE_COMPOSITING_MODE=1 ./Markdown.Viewer_*_amd64.AppImage
-```
-
-(You can restore the default behaviour with `WEBKIT_DISABLE_DMABUF_RENDERER=0`.)
 
 ## Keyboard shortcuts
 
@@ -119,42 +86,48 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 ./Markdown.Viewer_*_amd64.AppImage
 | `Ctrl+F` | Find in document |
 | `Ctrl+E` | Toggle edit / preview |
 | `Ctrl+S` | Save |
+| `Ctrl+W` / `Esc` | Close the document (asks to save if there are unsaved changes; `Esc` first closes any open dialog / find bar) |
 | `Ctrl+\` | Toggle outline sidebar |
+| `Ctrl+Shift+\` | Toggle wide / narrow content |
+| `Ctrl+B` | Toggle file explorer |
 | `Ctrl++` / `Ctrl+-` | Increase / decrease font size (or the `A+` / `A−` buttons) |
 
 ## Launch flags
 
 ```bash
-md-viewer.exe file.md            # open and render
-md-viewer.exe file.md --edit     # open straight into edit mode
-md-viewer.exe file.md --zoom=1.5 # scale the whole UI (high-DPI / accessibility)
+markdown-viewer.exe file.md            # open and render
+markdown-viewer.exe file.md --edit     # open straight into edit mode
+markdown-viewer.exe file.md --zoom=1.5 # scale the whole UI (high-DPI / accessibility)
 ```
 
-## Develop
+## Build with GitHub Actions (no local Node/Rust needed)
+
+The workflow builds **only** the portable Windows exe — no installers, no other
+platforms:
+
+- **Push a version tag** — builds the exe and attaches `markdown-viewer.exe` to
+  a GitHub Release for that tag:
+
+  ```bash
+  git tag v1.5.0
+  git push origin v1.5.0
+  ```
+
+- **Run it manually** — *Actions → release → Run workflow*. The exe is then
+  available under the run's **Artifacts** (no release is created).
+
+Keep the version in `package.json`, `src-tauri/Cargo.toml` and
+`src-tauri/tauri.conf.json` in sync with the tag — that's the version the app
+shows. See [.github/workflows/release.yml](.github/workflows/release.yml).
+
+## Build locally (optional)
+
+Requires Node.js and Rust (MSVC toolchain):
 
 ```bash
 npm install
-npm run tauri dev
-```
-
-## Build a local binary
-
-```bash
 npm run tauri build
 ```
 
-Output (Windows): `src-tauri/target/release/md-viewer.exe` plus NSIS/MSI
-installers under `src-tauri/target/release/bundle/`.
-
-## Cross-platform releases
-
-Push a version tag and GitHub Actions builds Windows / macOS (Intel + Apple
-Silicon) / Linux installers — plus a portable Windows exe — and publishes them to
-a release:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-See [.github/workflows/release.yml](.github/workflows/release.yml).
+Output: `src-tauri/target/release/md-viewer.exe` (no installers are produced).
+For development with hot reload use `npm run tauri dev`.
