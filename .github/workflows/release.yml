@@ -1,57 +1,81 @@
 name: release
 
+# Builds ONE portable Windows exe (markdown-viewer.exe) — no installers, no
+# other operating systems.
+#
+#  - Push a tag like `v1.5.0`: builds the exe and attaches it to a GitHub
+#    Release with that tag (the release is created if it doesn't exist).
+#  - Run manually (Actions tab → release → Run workflow): builds only; download
+#    the exe from the run's "Artifacts" section.
+
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
 
-jobs:
-  publish-tauri:
-    permissions:
-      contents: write
-    runs-on: windows-latest
+permissions:
+  contents: write
 
+jobs:
+  build-windows:
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
-      # Sukompiliuojame programą
-      - name: Build Tauri App
-        run: npm run tauri build
+      # Runs `npm run build` (beforeBuildCommand) and then `cargo build --release`.
+      # --no-bundle: only the exe, no NSIS/MSI installers.
+      - name: Build portable exe
+        run: npx tauri build --no-bundle
 
-      # Sukuriame Release ir įkeliame TIK VIENĄ failą markdown-viewer.exe
-      - name: Create Release and Upload Single EXE
+      - name: Rename exe
+        shell: bash
+        run: |
+          EXE="src-tauri/target/release/md-viewer.exe"
+          if [ ! -f "$EXE" ]; then
+            echo "::error::$EXE not found"
+            ls -la src-tauri/target/release
+            exit 1
+          fi
+          cp "$EXE" markdown-viewer.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-viewer
+          path: markdown-viewer.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
         run: |
-          # Jei yra tag'as, naudojame jį, jei paleista rankiniu būdu – paimame versiją iš projekto žymos
-          TAG_NAME="${GITHUB_REF_NAME}"
-          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ] || [ "$TAG_NAME" = "master" ]; then
-            TAG_NAME="latest"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" markdown-viewer.exe --clobber
+          else
+            gh release create "$TAG" markdown-viewer.exe \
+              --title "Markdown Viewer $TAG" \
+              --notes "Portable Windows build: download markdown-viewer.exe and run it (no installer). Requires the Microsoft Edge WebView2 Runtime."
           fi
-
-          # Nukopijuojame sukompiliuotą failą tiksliu pavadinimu
-          cp "src-tauri/target/release/md-viewer.exe" "markdown-viewer.exe"
-
-          # Sukuriame Release (arba perrašome) ir įkeliame TIK šį vieną failą
-          gh release create "$TAG_NAME" "markdown-viewer.exe" \
-            --title "Markdown Viewer" \
-            --notes "Standalone portable Windows executable." \
-            --clobber
