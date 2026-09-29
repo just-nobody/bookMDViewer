@@ -13,23 +13,23 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4[cite: 4]
+      - uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4[cite: 4]
+        uses: actions/setup-node@v4
         with:
-          node-version: lts/*[cite: 4]
+          node-version: lts/*
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable[cite: 4]
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2[cite: 4]
+        uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"[cite: 4]
+          workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: npm install[cite: 4]
+        run: npm install
 
       - name: Build Tauri app binary
         run: npm run tauri build -- --no-bundle
