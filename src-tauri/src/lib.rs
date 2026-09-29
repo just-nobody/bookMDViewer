@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use serde::Serialize;
-use tauri::{Emitter, State};
+use serde::{Deserialize, Serialize};
+use tauri::{Emitter, Manager, State, WindowEvent};
 
 #[derive(Serialize)]
 struct DirEntry {
@@ -69,30 +70,159 @@ fn list_dir(path: String) -> Result<DirListing, String> {
 struct AppState {
     current: Mutex<Option<PathBuf>>,
     watcher: Mutex<Option<RecommendedWatcher>>,
-    /// True once the webview has registered its event listeners.
-    ready: Mutex<bool>,
-    /// macOS file-open requests received before the frontend was ready.
-    pending: Mutex<Vec<String>>,
-    /// True once the initial window has been given a document. On macOS (which
-    /// is single-instance) every *subsequent* file-open opens its own window
-    /// instead of replacing the current document — matching Windows/Linux.
-    claimed: Mutex<bool>,
+    geometry: Mutex<GeometryStore>,
 }
 
-/// Route a file-open request: the first file loads into the existing (empty)
-/// window; any later file spawns a new instance so it gets its own window.
-fn route_open(app: &tauri::AppHandle, state: &AppState, path: String) {
-    let mut claimed = state.claimed.lock().unwrap();
-    if !*claimed {
-        *claimed = true;
-        let _ = app.emit("open-file", path);
-    } else if let Ok(exe) = std::env::current_exe() {
-        let _ = std::process::Command::new(exe).arg(path).spawn();
+// ---------- Window geometry (size, position, maximized) ----------
+
+/// Window placement remembered across launches, in physical pixels. The
+/// position/size are always the *normal* (un-maximized) bounds, so a window
+/// closed while maximized still un-maximizes back to its previous place.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
+struct WindowGeometry {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    maximized: bool,
+}
+
+#[derive(Default)]
+struct GeometryStore {
+    /// Last geometry recorded (restored at startup or saved since).
+    last: Option<WindowGeometry>,
+    /// Channel to the background thread that writes the geometry file.
+    writer: Option<Sender<WindowGeometry>>,
+}
+
+const GEOMETRY_FILE: &str = "window-state.json";
+
+/// Reject degenerate sizes (a corrupt file, or 0×0 reported while minimized).
+fn sane_size(width: u32, height: u32) -> bool {
+    (200..=20_000).contains(&width) && (150..=20_000).contains(&height)
+}
+
+fn geometry_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join(GEOMETRY_FILE))
+}
+
+fn load_geometry(path: &Path) -> Option<WindowGeometry> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let geo: WindowGeometry = serde_json::from_str(&text).ok()?;
+    sane_size(geo.width, geo.height).then_some(geo)
+}
+
+fn write_geometry(path: &Path, geo: &WindowGeometry) {
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(json) = serde_json::to_string(geo) {
+        let _ = std::fs::write(path, json);
     }
 }
 
-/// Pull a markdown file path out of the process arguments (set when the OS
-/// launches us via a `.md` file association on Windows / Linux).
+/// The window's current normal bounds (used when nothing was saved yet).
+fn current_geometry(window: &tauri::WebviewWindow) -> Option<WindowGeometry> {
+    let pos = window.outer_position().ok()?;
+    let size = window.inner_size().ok()?;
+    Some(WindowGeometry {
+        x: pos.x,
+        y: pos.y,
+        width: size.width,
+        height: size.height,
+        maximized: false,
+    })
+}
+
+/// True if the window's title-bar strip overlaps a connected monitor enough to
+/// be grabbed — so a monitor that's been unplugged can't strand the window.
+fn is_on_screen(window: &tauri::WebviewWindow, geo: &WindowGeometry) -> bool {
+    let Ok(monitors) = window.available_monitors() else {
+        return false;
+    };
+    let (x, y, w) = (i64::from(geo.x), i64::from(geo.y), i64::from(geo.width));
+    monitors.iter().any(|m| {
+        let (mx, my) = (i64::from(m.position().x), i64::from(m.position().y));
+        let (mw, mh) = (i64::from(m.size().width), i64::from(m.size().height));
+        let overlap_w = (x + w).min(mx + mw) - x.max(mx);
+        let overlap_h = (y + 40).min(my + mh) - y.max(my);
+        overlap_w >= 100 && overlap_h >= 20
+    })
+}
+
+/// Apply the saved geometry to the (still hidden) main window, then show it.
+/// The window starts hidden (`visible: false`) so it never flashes at the
+/// default size/place first.
+fn restore_geometry(window: &tauri::WebviewWindow, saved: Option<WindowGeometry>) {
+    if let Some(geo) = saved {
+        let pos = || tauri::Position::Physical(tauri::PhysicalPosition::new(geo.x, geo.y));
+        let size = || tauri::Size::Physical(tauri::PhysicalSize::new(geo.width, geo.height));
+        if is_on_screen(window, &geo) {
+            // Move first so the size is applied on the target monitor (its DPI),
+            // then move again in case the DPI change nudged the window.
+            let _ = window.set_position(pos());
+            let _ = window.set_size(size());
+            let _ = window.set_position(pos());
+        } else {
+            let _ = window.set_size(size());
+        }
+        if geo.maximized {
+            let _ = window.maximize();
+        }
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+/// Record the window's geometry after every move / resize.
+fn save_geometry(window: &tauri::Window) {
+    // A minimized window reports a bogus off-screen position — keep the last state.
+    if window.is_minimized().unwrap_or(true) {
+        return;
+    }
+    let Ok(maximized) = window.is_maximized() else {
+        return;
+    };
+    let state = window.state::<AppState>();
+    let mut store = state.geometry.lock().unwrap();
+    let geo = if maximized {
+        // Keep the normal bounds from before maximizing; only flag the state.
+        match store.last {
+            Some(last) => WindowGeometry {
+                maximized: true,
+                ..last
+            },
+            None => return,
+        }
+    } else {
+        let (Ok(pos), Ok(size)) = (window.outer_position(), window.inner_size()) else {
+            return;
+        };
+        if !sane_size(size.width, size.height) {
+            return;
+        }
+        WindowGeometry {
+            x: pos.x,
+            y: pos.y,
+            width: size.width,
+            height: size.height,
+            maximized: false,
+        }
+    };
+    if store.last == Some(geo) {
+        return;
+    }
+    store.last = Some(geo);
+    if let Some(writer) = &store.writer {
+        let _ = writer.send(geo);
+    }
+}
+
+/// Pull a markdown file path out of the process arguments (set when Windows
+/// launches us for a `.md` file, e.g. via "Open with").
 fn path_from_args() -> Option<PathBuf> {
     std::env::args_os()
         .skip(1)
@@ -112,18 +242,6 @@ fn start_zoom() -> f64 {
     std::env::args()
         .find_map(|a| a.strip_prefix("--zoom=").and_then(|v| v.parse::<f64>().ok()))
         .unwrap_or(0.0)
-}
-
-/// Called by the webview once its event listeners are registered. Flushes any
-/// file-open requests that arrived during cold start (macOS drops events that
-/// are emitted before the frontend is listening).
-#[tauri::command]
-fn frontend_ready(app: tauri::AppHandle, state: State<AppState>) {
-    *state.ready.lock().unwrap() = true;
-    let pending: Vec<String> = state.pending.lock().unwrap().drain(..).collect();
-    for path in pending {
-        route_open(&app, state.inner(), path);
-    }
 }
 
 /// Returns the file path the app was opened with, if any.
@@ -197,7 +315,6 @@ fn watch_file(path: String, app: tauri::AppHandle, state: State<AppState>) -> Re
     Ok(())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState::default();
     if let Some(p) = path_from_args() {
@@ -208,9 +325,42 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
+        .setup(|app| {
+            let path = geometry_path(app.handle());
+            let saved = path.as_deref().and_then(load_geometry);
+
+            // Background writer: a window drag fires many events, so coalesce
+            // bursts and write only the newest geometry, off the UI thread.
+            let (tx, rx) = std::sync::mpsc::channel::<WindowGeometry>();
+            std::thread::spawn(move || {
+                while let Ok(mut geo) = rx.recv() {
+                    while let Ok(newer) = rx.try_recv() {
+                        geo = newer;
+                    }
+                    if let Some(path) = &path {
+                        write_geometry(path, &geo);
+                    }
+                }
+            });
+
+            if let Some(window) = app.get_webview_window("main") {
+                {
+                    let state = app.state::<AppState>();
+                    let mut store = state.geometry.lock().unwrap();
+                    store.last = saved.or_else(|| current_geometry(&window));
+                    store.writer = Some(tx);
+                }
+                restore_geometry(&window, saved);
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+                save_geometry(window);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_initial_path,
-            frontend_ready,
             start_in_edit,
             start_zoom,
             read_md,
@@ -219,30 +369,6 @@ pub fn run() {
             open_new_window,
             watch_file
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app, event| {
-            // macOS delivers file-association opens as a runtime event. During
-            // cold start this can fire before the webview is listening, so we
-            // buffer until `frontend_ready` flushes the queue.
-            #[cfg(target_os = "macos")]
-            {
-                use tauri::Manager as _;
-                if let tauri::RunEvent::Opened { urls } = &event {
-                    let state = app.state::<AppState>();
-                    let ready = *state.ready.lock().unwrap();
-                    for url in urls {
-                        if let Ok(p) = url.to_file_path() {
-                            let s = p.to_string_lossy().into_owned();
-                            if ready {
-                                route_open(app, state.inner(), s);
-                            } else {
-                                state.pending.lock().unwrap().push(s);
-                            }
-                        }
-                    }
-                }
-            }
-            let _ = (app, &event);
-        });
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
