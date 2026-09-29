@@ -990,7 +990,7 @@ async function checkUpdate(): Promise<void> {
   showUpdateStatus("Checking…");
   try {
     const res = await fetch(
-      "https://api.github.com/repos/craig7351/bookMDViewer/releases/latest",
+      "https://api.github.com/repos/just-nobody/bookMDViewer/releases",
       { headers: { Accept: "application/vnd.github+json" } },
     );
     if (!res.ok) throw new Error(String(res.status));
@@ -1011,7 +1011,7 @@ async function checkUpdate(): Promise<void> {
 updateCheckBtn.addEventListener("click", () => void checkUpdate());
 
 // ---------- About dialog (version info) ----------
-const REPO_URL = "https://github.com/craig7351/bookMDViewer";
+const REPO_URL = "https://github.com/just-nobody/bookMDViewer";
 const aboutModal = document.getElementById("about-modal") as HTMLElement;
 const aboutVersion = document.getElementById("about-version") as HTMLElement;
 aboutVersion.textContent = `v${__APP_VERSION__}`;
