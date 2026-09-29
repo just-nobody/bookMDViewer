@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -31,22 +31,25 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build Tauri app binary
-        run: npm run tauri build -- --no-bundle
+      - name: Build Tauri App
+        run: npm run tauri build
 
-      - name: Create Release and Upload Portable Executable
+      - name: Create Release & Upload Portable EXE
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VER="${GITHUB_REF_NAME#v}"
-          if [ -z "$VER" ] || [ "$VER" = "main" ] || [ "$VER" = "master" ]; then VER="portable"; fi
+          TAG_NAME="${GITHUB_REF_NAME}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ] || [ "$TAG_NAME" = "master" ]; then
+            TAG_NAME="v1.0.0-portable"
+          fi
           
+          VER="${TAG_NAME#v}"
           OUT="Markdown.Viewer_${VER}_x64_portable.exe"
           
           cp "src-tauri/target/release/md-viewer.exe" "$OUT"
           
-          gh release create "v1.0.0-${VER}" "$OUT" \
-            --title "Markdown Viewer (${VER})" \
+          gh release create "$TAG_NAME" "$OUT" \
+            --title "Markdown Viewer ${TAG_NAME}" \
             --notes "Standalone portable Windows executable." \
             --clobber
