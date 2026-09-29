@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch: # Leidžia paleisti kompilavimą rankiniu būdu per Actions kortelę
+  workflow_dispatch:
 
 jobs:
   publish-tauri:
@@ -13,41 +13,44 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4[cite: 4]
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4[cite: 4]
         with:
-          node-version: lts/*
+          node-version: lts/*[cite: 4]
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable[cite: 4]
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@v2[cite: 4]
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: "./src-tauri -> target"[cite: 4]
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm install[cite: 4]
 
-      - name: Build and release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Markdown Viewer ${{ github.ref_name }}"
-          releaseBody: "Išversta lietuviška versija (Portable Windows)."
-          releaseDraft: false
-          prerelease: false
+      # Kompiliuojame tik patį projektą nenaudojant installerių generavimo
+      - name: Build Tauri app binary
+        run: npm run tauri build -- --no-bundle
 
-      - name: Upload portable Windows exe
+      - name: Create Release and Upload Portable Executable
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VER="${GITHUB_REF_NAME#v}"
+          # Jei leidi rankiniu būdu (workflow_dispatch) be tag'o, panaudojame numatytąją versiją
+          if [ -z "$VER" ]; then VER="portable"; fi
+          
           OUT="Markdown.Viewer_${VER}_x64_portable.exe"
+          
+          # Nukopijuojame gryną .exe failą iš release katalogo
           cp "src-tauri/target/release/md-viewer.exe" "$OUT"
-          gh release upload "$GITHUB_REF_NAME" "$OUT" --clobber
+          
+          # Sukuriame Release ir įkeliame TIK portable .exe failą
+          gh release create "${GITHUB_REF_NAME:-v1.0.0}" "$OUT" \
+            --title "Markdown Viewer ${GITHUB_REF_NAME:-Portable}" \
+            --notes "Standalone portable Windows executable." \
+            --clobber
