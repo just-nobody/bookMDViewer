@@ -87,8 +87,8 @@ const toastEl = document.getElementById("toast") as HTMLElement;
 const appWindow = getCurrentWindow();
 const EMPTY_STATE_HTML = `<div class="empty-state">
   <h1>Markdown Viewer</h1>
-  <p>Drag a <code>.md</code> file here, or <a id="empty-open" href="#">open one</a>.</p>
-  <p class="app-version"><a id="about-open" href="#">關於 / About</a></p>
+  <p>Atvilkite <code>.md</code> failą čia arba <a id="empty-open" href="#">atidarykite failą</a>.</p>
+  <p class="app-version"><a id="about-open" href="#">Apie</a></p>
   <div id="recent-list"></div>
 </div>`;
 let closeAction: "window" | "doc" | "switch" = "window";
@@ -163,8 +163,8 @@ function addCopyButtons(): void {
       const btn = document.createElement("button");
       btn.className = "copy-btn";
       btn.type = "button";
-      btn.title = "複製";
-      btn.setAttribute("aria-label", "複製程式碼");
+      btn.title = "Kopijuoti";
+      btn.setAttribute("aria-label", "Kopijuoti kodo fragmentą");
       btn.textContent = "📋";
       btn.addEventListener("click", async (ev) => {
         ev.stopPropagation();
@@ -178,7 +178,7 @@ function addCopyButtons(): void {
             btn.classList.remove("copied");
           }, 1400);
         } catch {
-          toast("複製失敗");
+          toast("Kopijavimo klaida");
         }
       });
       pre.appendChild(btn);
@@ -362,7 +362,7 @@ function buildFmCard(data: Record<string, unknown>): HTMLElement | null {
   if (data.draft === true) {
     const b = document.createElement("span");
     b.className = "fm-chip fm-badge";
-    b.textContent = "Draft";
+    b.textContent = "Juodraštis";
     meta.appendChild(b);
   }
   if (meta.childNodes.length) card.appendChild(meta);
@@ -454,7 +454,7 @@ function setTitle(): void {
   document.title = `${dirty ? "● " : ""}${name} — Markdown Viewer`;
   saveBtn.hidden = !editMode;
   saveBtn.disabled = !dirty;
-  saveBtn.textContent = dirty ? "💾 Save*" : "💾 Saved";
+  saveBtn.textContent = dirty ? "💾 Išsaugoti*" : "💾 Išsaugota";
   closeDocBtn.hidden = !currentPath;
 }
 
@@ -466,7 +466,7 @@ function goHome(): void {
   if (editMode) {
     editMode = false;
     layout.classList.remove("mode-edit");
-    editToggle.textContent = "✎ Edit";
+    editToggle.textContent = "✎ Redaguoti";
   }
   content.innerHTML = EMPTY_STATE_HTML;
   buildToc();
@@ -515,7 +515,7 @@ function schedulePreview(): void {
 function setEditMode(on: boolean): void {
   editMode = on;
   layout.classList.toggle("mode-edit", on);
-  editToggle.textContent = on ? "👁 Preview" : "✎ Edit";
+  editToggle.textContent = on ? "👁 Peržiūra" : "✎ Redaguoti";
   if (on) {
     // Only reload from the saved snapshot when there are no unsaved edits;
     // otherwise entering edit mode would wipe the user's unsaved buffer
@@ -623,11 +623,11 @@ function buildExportHtml(): string {
     tocHtml = `<nav class="toc">\n${items}\n</nav>\n`;
   }
 
-  const title = currentPath?.split(/[\\/]/).pop()?.replace(/\.(md|markdown)$/i, "") ?? "Document";
+  const title = currentPath?.split(/[\\/]/).pop()?.replace(/\.(md|markdown)$/i, "") ?? "Dokumentas";
   const themeCss = currentDark() ? hljsDarkCss : hljsLightCss;
 
   return `<!doctype html>
-<html lang="zh-Hant">
+<html lang="lt">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -645,7 +645,7 @@ ${article.innerHTML}
 
 async function exportHtml(): Promise<void> {
   if (!currentPath) {
-    toast("沒有開啟的檔案");
+    toast("Nėra atidaryto failo");
     return;
   }
   // Make sure the preview reflects the latest source (e.g. while editing).
@@ -655,9 +655,9 @@ async function exportHtml(): Promise<void> {
   const out = `${base}.html`;
   try {
     await invoke("write_md", { path: out, content: buildExportHtml() });
-    toast(`已匯出 ${out.split(/[\\/]/).pop()}`);
+    toast(`Išeksportuota ${out.split(/[\\/]/).pop()}`);
   } catch (e) {
-    toast(`匯出失敗: ${String(e)}`);
+    toast(`Eksportavimo klaida: ${String(e)}`);
   }
 }
 
@@ -762,9 +762,9 @@ const THEME_ICON: Record<ThemePref, string> = {
   dark: "🌙",
 };
 const THEME_TITLE: Record<ThemePref, string> = {
-  system: "主題:跟隨系統 (點擊切換)",
-  light: "主題:亮色 (點擊切換)",
-  dark: "主題:暗色 (點擊切換)",
+  system: "Tema: Sistemos (spustelėkite, kad pakeistumėte)",
+  light: "Tema: Šviesi (spustelėkite, kad pakeistumėte)",
+  dark: "Tema: Tamsi (spustelėkite, kad pakeistumėte)",
 };
 function applyTheme(): void {
   document.documentElement.dataset.theme = themePref;
@@ -802,19 +802,19 @@ interface FontOption {
 const DEFAULT_LATIN_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial';
 const LATIN_FONTS: FontOption[] = [
-  { id: "system", label: "系統預設 Sans", stack: DEFAULT_LATIN_STACK, generic: "sans-serif" },
+  { id: "system", label: "Sistemos numatytasis (Sans)", stack: DEFAULT_LATIN_STACK, generic: "sans-serif" },
   { id: "serif", label: "Serif (Georgia)", stack: 'Georgia, "Times New Roman"', generic: "serif" },
   { id: "helvetica", label: "Helvetica / Arial", stack: "Helvetica, Arial", generic: "sans-serif" },
   { id: "verdana", label: "Verdana", stack: "Verdana, Geneva", generic: "sans-serif" },
-  { id: "mono", label: "等寬 Mono", stack: "ui-monospace, Consolas", generic: "monospace" },
+  { id: "mono", label: "Lygiaplotis (Mono)", stack: "ui-monospace, Consolas", generic: "monospace" },
 ];
 const CJK_FONTS: FontOption[] = [
-  { id: "system", label: "系統預設", stack: "" },
-  { id: "jhenghei", label: "微軟正黑體", stack: '"Microsoft JhengHei", "Microsoft YaHei"' },
-  { id: "pingfang", label: "蘋方 PingFang", stack: '"PingFang TC", "PingFang SC"' },
-  { id: "notosans", label: "思源黑體 Noto Sans", stack: '"Noto Sans TC", "Noto Sans CJK TC"' },
-  { id: "notoserif", label: "思源宋體 Noto Serif", stack: '"Noto Serif TC", "Noto Serif CJK TC"' },
-  { id: "kai", label: "標楷體", stack: '"DFKai-SB", "BiauKai", "Kaiti TC"' },
+  { id: "system", label: "Sistemos numatytasis", stack: "" },
+  { id: "jhenghei", label: "Microsoft JhengHei", stack: '"Microsoft JhengHei", "Microsoft YaHei"' },
+  { id: "pingfang", label: "PingFang", stack: '"PingFang TC", "PingFang SC"' },
+  { id: "notosans", label: "Noto Sans", stack: '"Noto Sans TC", "Noto Sans CJK TC"' },
+  { id: "notoserif", label: "Noto Serif", stack: '"Noto Serif TC", "Noto Serif CJK TC"' },
+  { id: "kai", label: "Kaiti", stack: '"DFKai-SB", "BiauKai", "Kaiti TC"' },
 ];
 
 const settingsBtn = document.getElementById("settings-btn") as HTMLButtonElement;
@@ -835,7 +835,7 @@ function fillFontSelect(sel: HTMLSelectElement, opts: FontOption[]): void {
   // "Custom" lets the user type any installed font family by name.
   const custom = document.createElement("option");
   custom.value = "custom";
-  custom.textContent = "自訂… / Custom…";
+  custom.textContent = "Pasirinktinis… / Custom…";
   sel.appendChild(custom);
 }
 fillFontSelect(fontLatinSel, LATIN_FONTS);
@@ -973,7 +973,7 @@ function showUpdateStatus(text: string, isNew = false, url?: string): void {
   updateStatus.textContent = text;
   if (url) {
     const a = document.createElement("a");
-    a.textContent = "前往下載";
+    a.textContent = "Atsisiųsti";
     a.href = "#";
     a.addEventListener("click", (ev) => {
       ev.preventDefault();
@@ -985,7 +985,7 @@ function showUpdateStatus(text: string, isNew = false, url?: string): void {
 
 async function checkUpdate(): Promise<void> {
   updateCheckBtn.disabled = true;
-  showUpdateStatus("檢查中…");
+  showUpdateStatus("Tikrinama…");
   try {
     const res = await fetch(
       "https://api.github.com/repos/craig7351/bookMDViewer/releases/latest",
@@ -996,12 +996,12 @@ async function checkUpdate(): Promise<void> {
     const latest = (data.tag_name ?? "").replace(/^v/, "");
     if (!latest) throw new Error("no tag");
     if (compareVersions(latest, __APP_VERSION__) > 0) {
-      showUpdateStatus(`發現新版 v${latest}`, true, data.html_url);
+      showUpdateStatus(`Rasta nauja versija v${latest}`, true, data.html_url);
     } else {
-      showUpdateStatus("已是最新版本 ✓");
+      showUpdateStatus("Naudojate naujausią versiją ✓");
     }
   } catch {
-    showUpdateStatus("無法檢查更新(請確認網路)");
+    showUpdateStatus("Nepavyko patikrinti atnaujinimų (patikrinkite ryšį)");
   } finally {
     updateCheckBtn.disabled = false;
   }
@@ -1060,7 +1060,7 @@ function renderRecents(): void {
   const list = getRecents();
   if (!list.length) return;
   const h = document.createElement("h3");
-  h.textContent = "最近開啟";
+  h.textContent = "Paskutiniai atidaryti";
   host.appendChild(h);
   list.forEach((p) => {
     const a = document.createElement("a");
@@ -1137,7 +1137,7 @@ function showFileMenu(ev: MouseEvent, path: string): void {
   const menu = document.createElement("div");
   menu.className = "ctx-menu";
   const item = document.createElement("button");
-  item.textContent = "在新視窗開啟";
+  item.textContent = "Atidaryti naujame lange";
   item.addEventListener("click", () => {
     closeFileMenu();
     void invoke("open_new_window", { path });
@@ -1158,7 +1158,7 @@ async function renderFiles(dir: string | null): Promise<void> {
     filesPanel.innerHTML = "";
     const hint = document.createElement("div");
     hint.className = "files-hint";
-    hint.textContent = "開啟檔案後可瀏覽其目錄";
+    hint.textContent = "Atidarykite failą, kad galėtumėte naršyti jo katalogą";
     filesPanel.appendChild(hint);
     return;
   }
@@ -1353,7 +1353,7 @@ function runFind(backwards: boolean): void {
       find: (s: string, c: boolean, b: boolean, w: boolean) => boolean;
     }
   ).find(q, false, backwards, true);
-  findCount.textContent = found ? "" : "無相符";
+  findCount.textContent = found ? "" : "Nėra atitikmenų";
 }
 findInput.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") {
