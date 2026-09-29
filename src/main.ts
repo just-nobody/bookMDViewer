@@ -715,17 +715,21 @@ function finishClose(): void {
 );
 
 // Close the current document (back to home), confirming if there are edits.
-// Used by the ✕ button, Ctrl+W and Esc.
-function requestCloseDoc(): void {
-  if (!currentPath || !closeModal.hidden) return;
+closeDocBtn.addEventListener("click", () => {
   if (dirty) {
     closeAction = "doc";
     showCloseModal();
   } else {
     goHome();
   }
+});
+
+// Ctrl+W / Esc close the whole window — the same path as the title-bar ✕, so
+// unsaved edits still trigger the save prompt (see onCloseRequested in init).
+function requestCloseWindow(): void {
+  if (!closeModal.hidden) return; // the save prompt is already showing
+  void appWindow.close();
 }
-closeDocBtn.addEventListener("click", requestCloseDoc);
 
 // Content font scaling (persisted).
 let fontScale = parseFloat(localStorage.getItem("fontScale") ?? "1") || 1;
@@ -792,14 +796,14 @@ systemDarkMQ.addEventListener("change", () => {
 });
 applyTheme();
 
-// ---------- Settings: reading font (separate Latin + CJK) ----------
+// ---------- Settings: reading font ----------
 // Each option is a fallback stack; unavailable fonts degrade gracefully, and
 // the browser's last-resort fallback still renders glyphs a font lacks.
 interface FontOption {
   id: string;
   label: string;
-  stack: string; // families only (no generic); empty = system default
-  generic?: string; // appended after the CJK families
+  stack: string; // families only (no generic)
+  generic?: string; // appended after the families
 }
 const DEFAULT_LATIN_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial';
@@ -810,21 +814,11 @@ const LATIN_FONTS: FontOption[] = [
   { id: "verdana", label: "Verdana", stack: "Verdana, Geneva", generic: "sans-serif" },
   { id: "mono", label: "Monospace", stack: "ui-monospace, Consolas", generic: "monospace" },
 ];
-const CJK_FONTS: FontOption[] = [
-  { id: "system", label: "System default", stack: "" },
-  { id: "jhenghei", label: "Microsoft JhengHei", stack: '"Microsoft JhengHei", "Microsoft YaHei"' },
-  { id: "pingfang", label: "PingFang", stack: '"PingFang TC", "PingFang SC"' },
-  { id: "notosans", label: "Noto Sans CJK", stack: '"Noto Sans TC", "Noto Sans CJK TC"' },
-  { id: "notoserif", label: "Noto Serif CJK", stack: '"Noto Serif TC", "Noto Serif CJK TC"' },
-  { id: "kai", label: "DFKai-SB (Kai)", stack: '"DFKai-SB", "BiauKai", "Kaiti TC"' },
-];
 
 const settingsBtn = document.getElementById("settings-btn") as HTMLButtonElement;
 const settingsModal = document.getElementById("settings-modal") as HTMLElement;
 const fontLatinSel = document.getElementById("font-latin") as HTMLSelectElement;
-const fontCjkSel = document.getElementById("font-cjk") as HTMLSelectElement;
 const fontLatinCustomEl = document.getElementById("font-latin-custom") as HTMLInputElement;
-const fontCjkCustomEl = document.getElementById("font-cjk-custom") as HTMLInputElement;
 const fontList = document.getElementById("font-list") as HTMLDataListElement;
 
 function fillFontSelect(sel: HTMLSelectElement, opts: FontOption[]): void {
@@ -841,12 +835,9 @@ function fillFontSelect(sel: HTMLSelectElement, opts: FontOption[]): void {
   sel.appendChild(custom);
 }
 fillFontSelect(fontLatinSel, LATIN_FONTS);
-fillFontSelect(fontCjkSel, CJK_FONTS);
 
 let fontLatinId = localStorage.getItem("fontLatin") ?? "system";
-let fontCjkId = localStorage.getItem("fontCjk") ?? "system";
 let fontLatinCustom = localStorage.getItem("fontLatinCustom") ?? "";
-let fontCjkCustom = localStorage.getItem("fontCjkCustom") ?? "";
 
 // Turn a typed font name into a CSS family fragment (quote it unless the user
 // already typed a comma-separated stack of their own).
@@ -860,50 +851,31 @@ function applyReadingFont(): void {
   const latin = LATIN_FONTS.find((f) => f.id === fontLatinId) ?? LATIN_FONTS[0];
   const latinStack = fontLatinId === "custom" ? toFamily(fontLatinCustom) : latin.stack;
   const latinGeneric = fontLatinId === "custom" ? "sans-serif" : latin.generic ?? "sans-serif";
-  const cjkStack =
-    fontCjkId === "custom"
-      ? toFamily(fontCjkCustom)
-      : (CJK_FONTS.find((f) => f.id === fontCjkId) ?? CJK_FONTS[0]).stack;
 
-  const parts = [latinStack, cjkStack, latinGeneric,
+  const parts = [latinStack, latinGeneric,
     '"Apple Color Emoji"', '"Segoe UI Emoji"'].filter(Boolean);
   document.documentElement.style.setProperty("--reading-font", parts.join(", "));
 
   fontLatinSel.value = fontLatinId;
-  fontCjkSel.value = fontCjkId;
   fontLatinCustomEl.hidden = fontLatinId !== "custom";
-  fontCjkCustomEl.hidden = fontCjkId !== "custom";
   fontLatinCustomEl.value = fontLatinCustom;
-  fontCjkCustomEl.value = fontCjkCustom;
 
   localStorage.setItem("fontLatin", fontLatinId);
-  localStorage.setItem("fontCjk", fontCjkId);
   localStorage.setItem("fontLatinCustom", fontLatinCustom);
-  localStorage.setItem("fontCjkCustom", fontCjkCustom);
 }
 fontLatinSel.addEventListener("change", () => {
   fontLatinId = fontLatinSel.value;
   applyReadingFont();
   if (fontLatinId === "custom") fontLatinCustomEl.focus();
 });
-fontCjkSel.addEventListener("change", () => {
-  fontCjkId = fontCjkSel.value;
-  applyReadingFont();
-  if (fontCjkId === "custom") fontCjkCustomEl.focus();
-});
 fontLatinCustomEl.addEventListener("input", () => {
   fontLatinCustom = fontLatinCustomEl.value;
-  applyReadingFont();
-});
-fontCjkCustomEl.addEventListener("input", () => {
-  fontCjkCustom = fontCjkCustomEl.value;
   applyReadingFont();
 });
 (document.getElementById("settings-reset") as HTMLButtonElement).addEventListener(
   "click",
   () => {
     fontLatinId = "system";
-    fontCjkId = "system";
     applyReadingFont();
   },
 );
@@ -990,7 +962,7 @@ async function checkUpdate(): Promise<void> {
   showUpdateStatus("Checking…");
   try {
     const res = await fetch(
-      "https://api.github.com/repos/just-nobody/bookMDViewer/releases",
+      "https://api.github.com/repos/craig7351/bookMDViewer/releases/latest",
       { headers: { Accept: "application/vnd.github+json" } },
     );
     if (!res.ok) throw new Error(String(res.status));
@@ -1011,7 +983,7 @@ async function checkUpdate(): Promise<void> {
 updateCheckBtn.addEventListener("click", () => void checkUpdate());
 
 // ---------- About dialog (version info) ----------
-const REPO_URL = "https://github.com/just-nobody/bookMDViewer";
+const REPO_URL = "https://github.com/craig7351/bookMDViewer";
 const aboutModal = document.getElementById("about-modal") as HTMLElement;
 const aboutVersion = document.getElementById("about-version") as HTMLElement;
 aboutVersion.textContent = `v${__APP_VERSION__}`;
@@ -1379,7 +1351,7 @@ function toggleToc(): void {
 }
 tocToggle.addEventListener("click", toggleToc);
 
-// Esc closes the topmost open overlay; with none open, it closes the document.
+// Esc closes the topmost open overlay; with none open, it closes the window.
 function handleEscape(): void {
   if (!closeModal.hidden) hideCloseModal();
   else if (!diagramModal.hidden) closeDiagram();
@@ -1387,7 +1359,7 @@ function handleEscape(): void {
   else if (!aboutModal.hidden) aboutModal.hidden = true;
   else if (fileMenuEl) closeFileMenu();
   else if (!findBar.hidden) closeFind();
-  else requestCloseDoc();
+  else requestCloseWindow();
 }
 
 window.addEventListener("keydown", (ev) => {
@@ -1421,7 +1393,7 @@ window.addEventListener("keydown", (ev) => {
     toggleFiles();
   } else if (ev.ctrlKey && (ev.key === "w" || ev.key === "W")) {
     ev.preventDefault();
-    requestCloseDoc();
+    requestCloseWindow();
   } else if (ev.key === "Escape") {
     ev.preventDefault();
     handleEscape();
