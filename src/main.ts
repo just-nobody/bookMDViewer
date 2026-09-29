@@ -6,8 +6,7 @@ import DOMPurify from "dompurify";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
-import { PhysicalSize } from "@tauri-apps/api/dpi";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
@@ -87,8 +86,8 @@ const toastEl = document.getElementById("toast") as HTMLElement;
 const appWindow = getCurrentWindow();
 const EMPTY_STATE_HTML = `<div class="empty-state">
   <h1>Markdown Viewer</h1>
-  <p>Atvilkite <code>.md</code> failą čia arba <a id="empty-open" href="#">atidarykite failą</a>.</p>
-  <p class="app-version"><a id="about-open" href="#">Apie</a></p>
+  <p>Drag a <code>.md</code> file here, or <a id="empty-open" href="#">open one</a>.</p>
+  <p class="app-version"><a id="about-open" href="#">About</a></p>
   <div id="recent-list"></div>
 </div>`;
 let closeAction: "window" | "doc" | "switch" = "window";
@@ -163,8 +162,8 @@ function addCopyButtons(): void {
       const btn = document.createElement("button");
       btn.className = "copy-btn";
       btn.type = "button";
-      btn.title = "Kopijuoti";
-      btn.setAttribute("aria-label", "Kopijuoti kodo fragmentą");
+      btn.title = "Copy";
+      btn.setAttribute("aria-label", "Copy code");
       btn.textContent = "📋";
       btn.addEventListener("click", async (ev) => {
         ev.stopPropagation();
@@ -178,7 +177,7 @@ function addCopyButtons(): void {
             btn.classList.remove("copied");
           }, 1400);
         } catch {
-          toast("Kopijavimo klaida");
+          toast("Copy failed");
         }
       });
       pre.appendChild(btn);
@@ -362,7 +361,7 @@ function buildFmCard(data: Record<string, unknown>): HTMLElement | null {
   if (data.draft === true) {
     const b = document.createElement("span");
     b.className = "fm-chip fm-badge";
-    b.textContent = "Juodraštis";
+    b.textContent = "Draft";
     meta.appendChild(b);
   }
   if (meta.childNodes.length) card.appendChild(meta);
@@ -454,7 +453,7 @@ function setTitle(): void {
   document.title = `${dirty ? "● " : ""}${name} — Markdown Viewer`;
   saveBtn.hidden = !editMode;
   saveBtn.disabled = !dirty;
-  saveBtn.textContent = dirty ? "💾 Išsaugoti*" : "💾 Išsaugota";
+  saveBtn.textContent = dirty ? "💾 Save*" : "💾 Saved";
   closeDocBtn.hidden = !currentPath;
 }
 
@@ -466,7 +465,7 @@ function goHome(): void {
   if (editMode) {
     editMode = false;
     layout.classList.remove("mode-edit");
-    editToggle.textContent = "✎ Redaguoti";
+    editToggle.textContent = "✎ Edit";
   }
   content.innerHTML = EMPTY_STATE_HTML;
   buildToc();
@@ -515,7 +514,7 @@ function schedulePreview(): void {
 function setEditMode(on: boolean): void {
   editMode = on;
   layout.classList.toggle("mode-edit", on);
-  editToggle.textContent = on ? "👁 Peržiūra" : "✎ Redaguoti";
+  editToggle.textContent = on ? "👁 Preview" : "✎ Edit";
   if (on) {
     // Only reload from the saved snapshot when there are no unsaved edits;
     // otherwise entering edit mode would wipe the user's unsaved buffer
@@ -623,11 +622,11 @@ function buildExportHtml(): string {
     tocHtml = `<nav class="toc">\n${items}\n</nav>\n`;
   }
 
-  const title = currentPath?.split(/[\\/]/).pop()?.replace(/\.(md|markdown)$/i, "") ?? "Dokumentas";
+  const title = currentPath?.split(/[\\/]/).pop()?.replace(/\.(md|markdown)$/i, "") ?? "Document";
   const themeCss = currentDark() ? hljsDarkCss : hljsLightCss;
 
   return `<!doctype html>
-<html lang="lt">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -645,7 +644,7 @@ ${article.innerHTML}
 
 async function exportHtml(): Promise<void> {
   if (!currentPath) {
-    toast("Nėra atidaryto failo");
+    toast("No file is open");
     return;
   }
   // Make sure the preview reflects the latest source (e.g. while editing).
@@ -655,9 +654,9 @@ async function exportHtml(): Promise<void> {
   const out = `${base}.html`;
   try {
     await invoke("write_md", { path: out, content: buildExportHtml() });
-    toast(`Išeksportuota ${out.split(/[\\/]/).pop()}`);
+    toast(`Exported ${out.split(/[\\/]/).pop()}`);
   } catch (e) {
-    toast(`Eksportavimo klaida: ${String(e)}`);
+    toast(`Export failed: ${String(e)}`);
   }
 }
 
@@ -716,14 +715,17 @@ function finishClose(): void {
 );
 
 // Close the current document (back to home), confirming if there are edits.
-closeDocBtn.addEventListener("click", () => {
+// Used by the ✕ button, Ctrl+W and Esc.
+function requestCloseDoc(): void {
+  if (!currentPath || !closeModal.hidden) return;
   if (dirty) {
     closeAction = "doc";
     showCloseModal();
   } else {
     goHome();
   }
-});
+}
+closeDocBtn.addEventListener("click", requestCloseDoc);
 
 // Content font scaling (persisted).
 let fontScale = parseFloat(localStorage.getItem("fontScale") ?? "1") || 1;
@@ -762,9 +764,9 @@ const THEME_ICON: Record<ThemePref, string> = {
   dark: "🌙",
 };
 const THEME_TITLE: Record<ThemePref, string> = {
-  system: "Tema: Sistemos (spustelėkite, kad pakeistumėte)",
-  light: "Tema: Šviesi (spustelėkite, kad pakeistumėte)",
-  dark: "Tema: Tamsi (spustelėkite, kad pakeistumėte)",
+  system: "Theme: follow system (click to change)",
+  light: "Theme: light (click to change)",
+  dark: "Theme: dark (click to change)",
 };
 function applyTheme(): void {
   document.documentElement.dataset.theme = themePref;
@@ -802,19 +804,19 @@ interface FontOption {
 const DEFAULT_LATIN_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial';
 const LATIN_FONTS: FontOption[] = [
-  { id: "system", label: "Sistemos numatytasis (Sans)", stack: DEFAULT_LATIN_STACK, generic: "sans-serif" },
+  { id: "system", label: "System default (Sans)", stack: DEFAULT_LATIN_STACK, generic: "sans-serif" },
   { id: "serif", label: "Serif (Georgia)", stack: 'Georgia, "Times New Roman"', generic: "serif" },
   { id: "helvetica", label: "Helvetica / Arial", stack: "Helvetica, Arial", generic: "sans-serif" },
   { id: "verdana", label: "Verdana", stack: "Verdana, Geneva", generic: "sans-serif" },
-  { id: "mono", label: "Lygiaplotis (Mono)", stack: "ui-monospace, Consolas", generic: "monospace" },
+  { id: "mono", label: "Monospace", stack: "ui-monospace, Consolas", generic: "monospace" },
 ];
 const CJK_FONTS: FontOption[] = [
-  { id: "system", label: "Sistemos numatytasis", stack: "" },
+  { id: "system", label: "System default", stack: "" },
   { id: "jhenghei", label: "Microsoft JhengHei", stack: '"Microsoft JhengHei", "Microsoft YaHei"' },
   { id: "pingfang", label: "PingFang", stack: '"PingFang TC", "PingFang SC"' },
-  { id: "notosans", label: "Noto Sans", stack: '"Noto Sans TC", "Noto Sans CJK TC"' },
-  { id: "notoserif", label: "Noto Serif", stack: '"Noto Serif TC", "Noto Serif CJK TC"' },
-  { id: "kai", label: "Kaiti", stack: '"DFKai-SB", "BiauKai", "Kaiti TC"' },
+  { id: "notosans", label: "Noto Sans CJK", stack: '"Noto Sans TC", "Noto Sans CJK TC"' },
+  { id: "notoserif", label: "Noto Serif CJK", stack: '"Noto Serif TC", "Noto Serif CJK TC"' },
+  { id: "kai", label: "DFKai-SB (Kai)", stack: '"DFKai-SB", "BiauKai", "Kaiti TC"' },
 ];
 
 const settingsBtn = document.getElementById("settings-btn") as HTMLButtonElement;
@@ -835,7 +837,7 @@ function fillFontSelect(sel: HTMLSelectElement, opts: FontOption[]): void {
   // "Custom" lets the user type any installed font family by name.
   const custom = document.createElement("option");
   custom.value = "custom";
-  custom.textContent = "Pasirinktinis… / Custom…";
+  custom.textContent = "Custom…";
   sel.appendChild(custom);
 }
 fillFontSelect(fontLatinSel, LATIN_FONTS);
@@ -973,7 +975,7 @@ function showUpdateStatus(text: string, isNew = false, url?: string): void {
   updateStatus.textContent = text;
   if (url) {
     const a = document.createElement("a");
-    a.textContent = "Atsisiųsti";
+    a.textContent = "Download";
     a.href = "#";
     a.addEventListener("click", (ev) => {
       ev.preventDefault();
@@ -985,7 +987,7 @@ function showUpdateStatus(text: string, isNew = false, url?: string): void {
 
 async function checkUpdate(): Promise<void> {
   updateCheckBtn.disabled = true;
-  showUpdateStatus("Tikrinama…");
+  showUpdateStatus("Checking…");
   try {
     const res = await fetch(
       "https://api.github.com/repos/craig7351/bookMDViewer/releases/latest",
@@ -996,12 +998,12 @@ async function checkUpdate(): Promise<void> {
     const latest = (data.tag_name ?? "").replace(/^v/, "");
     if (!latest) throw new Error("no tag");
     if (compareVersions(latest, __APP_VERSION__) > 0) {
-      showUpdateStatus(`Rasta nauja versija v${latest}`, true, data.html_url);
+      showUpdateStatus(`New version available: v${latest}`, true, data.html_url);
     } else {
-      showUpdateStatus("Naudojate naujausią versiją ✓");
+      showUpdateStatus("You're up to date ✓");
     }
   } catch {
-    showUpdateStatus("Nepavyko patikrinti atnaujinimų (patikrinkite ryšį)");
+    showUpdateStatus("Couldn't check for updates (check your network connection)");
   } finally {
     updateCheckBtn.disabled = false;
   }
@@ -1060,7 +1062,7 @@ function renderRecents(): void {
   const list = getRecents();
   if (!list.length) return;
   const h = document.createElement("h3");
-  h.textContent = "Paskutiniai atidaryti";
+  h.textContent = "Recent files";
   host.appendChild(h);
   list.forEach((p) => {
     const a = document.createElement("a");
@@ -1137,7 +1139,7 @@ function showFileMenu(ev: MouseEvent, path: string): void {
   const menu = document.createElement("div");
   menu.className = "ctx-menu";
   const item = document.createElement("button");
-  item.textContent = "Atidaryti naujame lange";
+  item.textContent = "Open in new window";
   item.addEventListener("click", () => {
     closeFileMenu();
     void invoke("open_new_window", { path });
@@ -1158,7 +1160,7 @@ async function renderFiles(dir: string | null): Promise<void> {
     filesPanel.innerHTML = "";
     const hint = document.createElement("div");
     hint.className = "files-hint";
-    hint.textContent = "Atidarykite failą, kad galėtumėte naršyti jo katalogą";
+    hint.textContent = "Open a file to browse its folder";
     filesPanel.appendChild(hint);
     return;
   }
@@ -1185,6 +1187,8 @@ async function renderFiles(dir: string | null): Promise<void> {
       const v = pathInput.value.trim();
       if (v) void renderFiles(v);
     } else if (ev.key === "Escape") {
+      // Handled here — don't let the global Esc also close the document.
+      ev.preventDefault();
       pathInput.value = listing.dir;
       pathInput.blur();
     }
@@ -1353,7 +1357,7 @@ function runFind(backwards: boolean): void {
       find: (s: string, c: boolean, b: boolean, w: boolean) => boolean;
     }
   ).find(q, false, backwards, true);
-  findCount.textContent = found ? "" : "Nėra atitikmenų";
+  findCount.textContent = found ? "" : "No matches";
 }
 findInput.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") {
@@ -1374,7 +1378,21 @@ function toggleToc(): void {
   layout.classList.toggle("toc-collapsed");
 }
 tocToggle.addEventListener("click", toggleToc);
+
+// Esc closes the topmost open overlay; with none open, it closes the document.
+function handleEscape(): void {
+  if (!closeModal.hidden) hideCloseModal();
+  else if (!diagramModal.hidden) closeDiagram();
+  else if (!settingsModal.hidden) closeSettings();
+  else if (!aboutModal.hidden) aboutModal.hidden = true;
+  else if (fileMenuEl) closeFileMenu();
+  else if (!findBar.hidden) closeFind();
+  else requestCloseDoc();
+}
+
 window.addEventListener("keydown", (ev) => {
+  // Already handled by a focused field (e.g. Esc in the find box).
+  if (ev.defaultPrevented) return;
   if (ev.ctrlKey && (ev.key === "\\" || ev.key === "|")) {
     // Shift turns "\" into "|" on many layouts; treat both as the same chord.
     ev.preventDefault();
@@ -1401,12 +1419,12 @@ window.addEventListener("keydown", (ev) => {
   } else if (ev.ctrlKey && (ev.key === "b" || ev.key === "B")) {
     ev.preventDefault();
     toggleFiles();
-  } else if (ev.key === "Escape" && !diagramModal.hidden) {
-    closeDiagram();
-  } else if (ev.key === "Escape" && !settingsModal.hidden) {
-    closeSettings();
-  } else if (ev.key === "Escape" && !findBar.hidden) {
-    closeFind();
+  } else if (ev.ctrlKey && (ev.key === "w" || ev.key === "W")) {
+    ev.preventDefault();
+    requestCloseDoc();
+  } else if (ev.key === "Escape") {
+    ev.preventDefault();
+    handleEscape();
   }
 });
 
@@ -1423,112 +1441,16 @@ content.addEventListener("click", (ev) => {
   }
 });
 
-// ---------- Window size persistence ----------
-// macOS is single-instance and, when a window's Space is re-activated, the OS
-// sometimes resizes it to fill the screen. We remember the user's size and
-// restore it on focus so switching desktops keeps the chosen width.
-interface WinSize {
-  width: number;
-  height: number;
-}
-// Matches the window's minWidth/minHeight in tauri.conf.json. Sizes below this
-// are degenerate (e.g. the OS reports 0×0 while minimized) and must never be
-// saved or restored — doing so shrinks the window to an unusable sliver.
-const MIN_WIN_W = 400;
-const MIN_WIN_H = 300;
-function isSaneSize(w: unknown, h: unknown): w is number {
-  return (
-    typeof w === "number" &&
-    typeof h === "number" &&
-    w >= MIN_WIN_W &&
-    h >= MIN_WIN_H
-  );
-}
-function loadWinSize(): WinSize | null {
-  try {
-    const s = JSON.parse(localStorage.getItem("winSize") ?? "null");
-    // Reject degenerate stored values so an upgrade auto-heals a corrupt size.
-    return s && isSaneSize(s.width, s.height)
-      ? { width: s.width, height: s.height }
-      : null;
-  } catch {
-    return null;
-  }
-}
-function saveWinSize(width: number, height: number): void {
-  // Never persist a minimized / degenerate size.
-  if (!isSaneSize(width, height)) return;
-  localStorage.setItem(
-    "winSize",
-    JSON.stringify({ width: Math.round(width), height: Math.round(height) }),
-  );
-}
-
-let suppressWinSaveUntil = 0;
-let winSaveTimer: number | undefined;
-let monitorWidth = 0; // cached (physical px) so the resize handler stays sync
-
-async function refreshMonitorWidth(): Promise<void> {
-  try {
-    const m = await currentMonitor();
-    if (m) monitorWidth = m.size.width;
-  } catch {
-    /* ignore */
-  }
-}
-
-async function setupWindowSize(): Promise<void> {
-  await refreshMonitorWidth();
-
-  // Restore the last size on launch.
-  const saved = loadWinSize();
-  if (saved) {
-    try {
-      await appWindow.setSize(new PhysicalSize(saved.width, saved.height));
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // Persist user resizes (debounced). Skips saving while suppressed and ignores
-  // a width that fills the monitor — that's the Spaces-switch jump, not a drag.
-  await appWindow.onResized(({ payload }) => {
-    if (Date.now() < suppressWinSaveUntil) return;
-    if (monitorWidth && payload.width >= monitorWidth - 2) return;
-    // Ignore minimized / degenerate sizes (0×0 etc.) — saveWinSize also guards.
-    if (!isSaneSize(payload.width, payload.height)) return;
-    const { width, height } = payload;
-    window.clearTimeout(winSaveTimer);
-    winSaveTimer = window.setTimeout(() => saveWinSize(width, height), 300);
-  });
-
-  // On regaining focus (e.g. switching back to this Space), restore the saved
-  // size and briefly suppress saving so the OS resize can't overwrite it.
-  await appWindow.onFocusChanged(({ payload: focused }) => {
-    if (!focused) return;
-    void refreshMonitorWidth();
-    const s = loadWinSize();
-    if (!s) return;
-    suppressWinSaveUntil = Date.now() + 600;
-    void appWindow.setSize(new PhysicalSize(s.width, s.height));
-  });
-}
+// Window size, position and maximized state are saved and restored by the
+// Rust side (see `save_geometry` / `restore_geometry` in src-tauri/src/lib.rs).
 
 async function init(): Promise<void> {
-  // Remember/restore the window size (see setupWindowSize).
-  await setupWindowSize();
-
   // Hot reload when the watched file changes on disk. Skip while editing or
   // when the change came from our own save.
   await listen<string>("md-changed", () => {
     if (currentPath && !editMode && Date.now() > suppressReloadUntil) {
       void openFile(currentPath, false, true);
     }
-  });
-
-  // macOS delivers file-association opens at runtime.
-  await listen<string>("open-file", (ev) => {
-    void openFile(ev.payload);
   });
 
   // Drag-and-drop a .md file onto the window.
@@ -1550,17 +1472,13 @@ async function init(): Promise<void> {
     }
   });
 
-  // Signal the backend that listeners are ready, flushing any file-open
-  // requests that arrived during cold start (fixes macOS first-open blank).
-  await invoke("frontend_ready");
-
   // Populate the empty-state recent-files list.
   renderRecents();
 
   // Restore the file-explorer panel if it was left open.
   if (filesOpen) void renderFiles(null);
 
-  // File the app was launched with (Windows / Linux association).
+  // File the app was launched with (command-line argument / "Open with").
   const initial = await invoke<string | null>("get_initial_path");
   if (initial) {
     await openFile(initial);
